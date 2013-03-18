@@ -1,8 +1,90 @@
 <html>
 <head>
   <script src="http://cloud.github.com/downloads/processing-js/processing-js/processing-1.4.1.min.js"></script>
+  <script src="js/jquery-1.9.1.js"></script>
   <script src="aiplane_behavior.js"></script>
 </head>
 <body>
+<script>
+var p, playerBehavior, enemyBehavior;
+
+function play(){
+  p = window.Processing.getInstanceById("dacanvas");
+  p.loop();
+}
+
+function pause(){
+  p = window.Processing.getInstanceById("dacanvas");
+  p.noLoop();
+}
+
+var bound = false;
+function bindJS(){
+  p = window.Processing.getInstanceById("dacanvas");
+  if(p != null){
+    p.bindJavascript(this);
+    bound = true;
+  }
+  if(!bound) setTimeout(bindJS, 50);
+}
+
+bindJS();
+
+function initBehavior(){
+  playerBehavior = new Behavior(p, "player");
+  enemyBehavior = new Behavior(p, "enemy");
+  console.log("K!");
+}
+
+function foo(){
+  p = window.Processing.getInstanceById("dacanvas");
+
+
+  var stateMaker = function(b){
+    var turn_left_to_chase = {
+      name: "turn left to chase",
+      predicates: [b.assertEnemyDirection("NW")],
+      commands: [{fn: "changeSpeedTo", param: "medium"},
+                 {fn: "turnLeftBy", param: "1.5"}]
+    };
+    var turn_right_to_chase = {
+      name: "turn right to chase",
+      predicates: [b.assertEnemyDirection("NE")],
+      commands: [{fn: "changeSpeedTo", param: "medium"},
+                 {fn: "turnRightBy", param: "5.5"}]
+    };
+    var stay_on_course = {
+      name: "stay on course",
+      predicates: [b.assertEnemyDirection("N")],
+      commands: [{fn: "changeSpeedTo", param: "high"},
+                 {fn: "maintainHeading", param: undefined}]
+    };
+    var turn_to_rear = {
+      name: "turn to rear",
+      predicates: [b.assertEnemyDirection("S")],
+      commands: [{fn: "changeSpeedTo", param: "medium"},
+                 {fn: "turnRightBy", param: "5.5"}]
+    };
+
+    return [stay_on_course, turn_right_to_chase, turn_left_to_chase, turn_to_rear];
+  }
+
+  var playerPursuitState = {
+    stateName: "Pursuit",
+    actions: stateMaker(playerBehavior)
+  };
+  var enemyPursuitState = {
+    stateName: "Pursuit",
+    actions: stateMaker(enemyBehavior)
+  };
+  playerBehavior.states.push(playerPursuitState);
+  enemyBehavior.states.push(enemyPursuitState);
+}
+</script>
+<div id='player-behavior-list' class='behavior-list'></div>
+<div id='enemy-behavior-list' class='behavior-list'></div>
+<div id='command-palette'></div>
+<button id='play' onClick='play();'>Play</button>
+<button id='pause' onClick='pause();'>Pause</button>
 <canvas id='dacanvas' data-processing-sources="Plane.pde aiplanes.pde"></canvas>
 </html>

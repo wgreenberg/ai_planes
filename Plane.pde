@@ -5,19 +5,22 @@ class Plane{
   float heading, speed;
   Plane enemy;
   String state;
-  int windowX, windowY;
+  int windowX, windowY, health;
 
   final float HIGH = 10;
   final float MEDIUM = 5;
   final float LOW = 2;
 
-  public Plane(int windowX, int windowY, PVector pos){
+  public Plane(int color, int windowX, int windowY, PVector pos){
+    this.color = color;
+    this.health = 100;
     this.windowX = windowX;
     this.windowY = windowY;
     this.pos = pos;
     this.vel = new PVector(0.0, 0.0);
     this.speed = 0.0;
     this.heading = 0.0;
+    this.headingV = new PVector(1.0, 0.0);
     this.enemy = null;
     this.state = "Start";
   }
@@ -27,11 +30,10 @@ class Plane{
   }
 
   public void maintainHeading(){
-    console.log("Maintaining heading!");
+    //console.log("Maintaining heading!");
   }
 
   public void changeSpeedTo(String desiredSpeed){
-    console.log(desiredSpeed);
     if(desiredSpeed = "high")
       this.speed = HIGH;
     else if(desiredSpeed = "medium")
@@ -43,7 +45,9 @@ class Plane{
   public void turnByHeading(float dHeading){
     this.heading += dHeading;
     this.heading = this.heading % 360.0;
-    console.log("new heading: " + this.heading);
+    float headingVx = cos(radians(this.heading));
+    float headingVy = sin(radians(this.heading));
+    this.headingV.set(headingVx, headingVy, 0.0);
   }
 
   public void turnRightBy(float degrees){
@@ -59,8 +63,16 @@ class Plane{
   }
 
   public void draw(){
-    fill(0);
+    //draw plane
+    stroke(0);
+    fill(this.color);
     ellipse(this.pos.x, this.pos.y, 10, 10);
+
+    //draw heading indicator
+    stroke(255);
+    float dx = 10.0*cos(radians(this.heading));
+    float dy = 10.0*sin(radians(this.heading));
+    line(this.pos.x, this.pos.y, this.pos.x + dx, this.pos.y + dy);
   }
 
   public void update(){
