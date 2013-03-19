@@ -12,10 +12,16 @@ function Behavior(pjs, id){
          }]
       }
     ];
-  this.currentState = this.states[0];
+  this.states = [];
 }
 
 Behavior.prototype.always = function(){ return true; };
+
+Behavior.prototype.flushStates = function(newStates, i){
+  if(i == undefined) i = 0;
+  this.states = newStates;
+  this.currentState = this.states[i];
+};
 
 Behavior.prototype.assertEnemyDirection = function(proposedDir){
   var that = this;
@@ -55,7 +61,7 @@ Behavior.prototype.evalState = function(){
     for(i in action.predicates){
       try{
       allTrue = allTrue && action.predicates[i].fn();
-      }catch(e){console.log(state.stateName + " " + action.predicates[i]);}
+      }catch(e){}
     }
     if(allTrue){
       $("#" + this.id + "-" + state.stateName + "-action" + j).attr('class', this.id + 'action activeAction');

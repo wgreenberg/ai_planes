@@ -45,6 +45,9 @@ var allCmds = ["maintainHeading", "changeSpeedTo", "turnRightBy", "turnLeftBy", 
 $(function(){
   $("#behavior-tabs").tabs();
   $(".commandList").sortable();
+  $("#update").button();
+  $("#play").button();
+  $("#pause").button();
 });
 
 function play(){
@@ -65,7 +68,9 @@ function bindJS(){
   if(!bound) setTimeout(bindJS, 50);
 }
 
-bindJS();
+$(document).ready(function(){
+  bindJS();
+});
 
 function initBehavior(){
   playerBehavior = new Behavior(p, "player");
@@ -73,9 +78,7 @@ function initBehavior(){
 
   addPursuitBehaviors();
   addStateToUI(playerBehavior, playerBehavior.states[0]);
-  addStateToUI(playerBehavior, playerBehavior.states[1]);
   addStateToUI(enemyBehavior, enemyBehavior.states[0]);
-  addStateToUI(enemyBehavior, enemyBehavior.states[1]);
 }
 
 function addPursuitBehaviors(){
@@ -133,14 +136,60 @@ function addPursuitBehaviors(){
   enemyBehavior.addState(enemyPursuitState, true);
 }
 
-function UItoState(){
+function resetStatesByUI(){
   var ids = ["player", "enemy"];
+  pause();
 
   for(var i in ids){
     var id = ids[i];
-    $("#"+id+"-state-list").each(function(i, e){
-      return e;
+    if(id == "player") var thisBehavior = playerBehavior;
+    else if(id == "enemy") var thisBehavior = enemyBehavior;
+    var states = [];
+    $("#"+id+"-state-list").children().each(function(i, stateLI){
+      var state = {};
+      state.stateName = $(stateLI).attr('id');
+      state.actions = [];
+      $(stateLI).children().each(function(j, actionDIV){
+        var action = {};
+        action.name = $(actionDIV).children('span').html();
+        action.predicates = [];
+        $(actionDIV).children('.predList').children().each(function(k, predLI){
+          var predicate = {}
+          predicate.label = $(predLI).html();
+          predicate.fn = predLabelToFunction(predicate.label, thisBehavior);
+          console.log(predicate.fn);
+          action.predicates.push(predicate);
+        });
+        action.commands = [];
+        $(actionDIV).children('.commandList').children().each(function(k, cmdLI){
+          var cmd = {};
+          $(cmdLI).children('.cmdName').each(function(l, cmdN){
+            cmd.fn = $(cmdN).html();
+          });
+          $(cmdLI).children('.cmdParam').each(function(l, cmdP){
+            cmd.param = $(cmdP).val();
+          });
+          action.commands.push(cmd);
+        });
+        state.actions.push(action);
+      });
+      states.push(state);
     });
+    if(id == "player") playerBehavior.flushStates(states, 0);
+    else if(id == "enemy") enemyBehavior.flushStates(states, 0);
+  }
+
+  play();
+}
+
+function predLabelToFunction(label, behavior){
+  var words = label.split(" ");
+  console.log(words);
+  if(words[0] == "enemy" && words[1] == "ship"){
+    if(words[3] == "in") return behavior.assertEnemyDirection("N");
+    if(words[3] == "front-right") return behavior.assertEnemyDirection("NE");
+    if(words[3] == "front-left") return behavior.assertEnemyDirection("NW");
+    if(words[3] == "behind") return behavior.assertEnemyDirection("S");
   }
 }
 
@@ -150,7 +199,6 @@ function addStateToUI(behavior, state){
   var stateDiv = $("<li>")
     .attr('class', 'state')
     .attr('id', state.stateName);
-  //stateDiv += "<b><u>"+state.stateName + "</u></b><br><ul>";
   stateDiv.append("<span>")
     .attr('style', 'font-weight: bold')
     .html(state.stateName);
@@ -164,7 +212,7 @@ function addStateToUI(behavior, state){
     actionDiv.append($("<p>If the following are true:"));
     var predList = $("<ul class='predList'>");
     for(var j in action.predicates){
-      var predItem = $("<li>").html(action.predicates[j].label);
+      var predItem = $("<li class='predLabel'>").html(action.predicates[j].label);
       predList.append(predItem);
     }
     actionDiv.append("If the following are true:");
@@ -181,24 +229,24 @@ function addStateToUI(behavior, state){
       commandList.append(cli);
     }
     var cmdsNotUsed = arrdiff(allCmds,cmdsUsed);
-    var newCmdPicklisti = $("<li id='"+id+"action"+i+"-newCmd'>");
-    var newCmdPicklist = $("<select id='"+id+"action"+i+"-cmdPicklist'>");
+    var newCmdPicklisti = $("<li id='"+actionId+"-newCmd'>");
+    var newCmdPicklist = $("<select id='"+actionId+"-cmdPicklist'>");
     newCmdPicklist.append($("<option>Add a new command...</option>"));
     for(var j in cmdsNotUsed){
       var cmdj = cmdsNotUsed[j];
       newCmdPicklist.append($("<option value='"+cmdj+"'>"+cmdj+"</option>"));
     }
-    var cbGen = function(index, theId){
+    var cbGen = function(theId){
       return function(){
         var newCli = $("<li>").attr('class', 'command');
         newCli.html(commandLI($(this).val()).html());
-        $('#'+theId+'action'+index+'-newCmd').before(newCli);
-        $('#'+theId+'action'+index+'-cmdPicklist option[value="'+$(this).val()+'"]').each(function(){
+        $('#'+theId+'-newCmd').before(newCli);
+        $('#'+theId+'-cmdPicklist option[value="'+$(this).val()+'"]').each(function(){
           $(this).remove();
         });
       }
     };
-    $(newCmdPicklist).change(cbGen(i, id));
+    $(newCmdPicklist).change(cbGen(actionId));
     newCmdPicklisti.append(newCmdPicklist);
     commandList.append(newCmdPicklisti);
     actionDiv.append(commandList);
@@ -206,19 +254,37 @@ function addStateToUI(behavior, state){
   }
 
   $("#" + id + "-state-list").append(stateDiv);
-  $(".commandList").sortable();
+  $(".commandList").sortable({
+    items: '.command',
+    sort: function(){
+      moveCounter++;
+    },
+    start: function(ev, ui){
+      moveCounter = 0;
+    },
+    stop: function(ev, ui){
+      console.log('k');
+      if(moveCounter < 3){
+        console.log('wat');
+        $(ui.item).click();
+      }
+    }
+  });
 }
 
 function commandLI(cmd, param){
-  var innerHTML = $("<span>")
-    .attr('class', 'cmdName')
-    .html(cmd + " ");
+  var innerHTML = $("<div>");
 
+  var cmdName = $("<span>")
+    .attr('class', 'cmdName')
+    .on('mouseup', function(){console.log('waat');})
+    .html(cmd);
+  $(innerHTML).append(cmdName);
   switch(cmd){
     case "maintainHeading":
       break;
     case "changeSpeedTo":
-      var dropdown = $("<select>");
+      var dropdown = $("<select class='cmdParam'>");
       var options = ["HIGH", "MEDIUM", "LOW"];
       for(var k in options){
         var opt = $("<option value='"+options[k]+"'>"+options[k]+"</option>")
@@ -228,19 +294,19 @@ function commandLI(cmd, param){
       innerHTML.append(dropdown);
       break;
     case "turnRightBy":
-      var input = $("<input>");
+      var input = $("<input class='cmdParam'>");
       if(param != undefined) $(input).attr('value', param);
       innerHTML.append(input);
       break;
     case "turnLeftBy":
-      var input = $("<input>");
+      var input = $("<input class='cmdParam'>");
       if(param != undefined) $(input).attr('value', param);
       innerHTML.append(input);
       break;
     case "fireMissile":
       break;
     case "goToState":
-      var input = $("<input>");
+      var input = $("<input class='cmdParam'>");
       if(param != undefined) $(input).attr('value', param);
       innerHTML.append(input);
       break;
@@ -249,6 +315,20 @@ function commandLI(cmd, param){
       break;
   }
 
+  var cb = 'var cmd = $(this).parent().children(".cmdName").html();'
+  cb += '$(this).parent().remove();'
+
+  var deleteLink = $("<button>")
+    .attr('class', 'deleteLink')
+    .attr('style', 'float: right')
+    .attr('onclick', cb)
+    .html('delete')
+    .on('click', function(){
+      console.log('foo');
+      $(this).remove();
+    });
+
+  $(innerHTML).append(deleteLink);
   return innerHTML;
 }
 
@@ -273,7 +353,9 @@ arrdiff = function(b, a) {
     </div>
   </div>
 </div>
+<canvas id='dacanvas' data-processing-sources="Missile.pde Plane.pde aiplanes.pde"></canvas>
+<br>
+<button id='update' onClick='resetStatesByUI();'>Update States</button>
 <button id='play' onClick='play();'>Play</button>
 <button id='pause' onClick='pause();'>Pause</button>
-<canvas id='dacanvas' data-processing-sources="Missile.pde Plane.pde aiplanes.pde"></canvas>
 </html>
