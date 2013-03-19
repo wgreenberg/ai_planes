@@ -2,19 +2,56 @@
 <head>
   <script src="http://cloud.github.com/downloads/processing-js/processing-js/processing-1.4.1.min.js"></script>
   <script src="js/jquery-1.9.1.js"></script>
+  <script src="js/jquery-ui-1.10.2.custom.min.js"></script>
   <script src="aiplane_behavior.js"></script>
+ <style>
+
+.activeAction {
+  background: green;
+}
+
+.action-title {
+  font-style: italic;
+}
+
+.command {
+  border-style: dashed;
+  border-width: 1px;
+  margin: 5px;
+  padding: 5px;
+}
+
+.playeraction {
+  border-style: solid;
+  border-width: 2px;
+  margin: 5px;
+  padding: 5px;
+}
+
+.enemyaction {
+  border-style: solid;
+  border-width: 2px;
+  margin: 5px;
+  padding: 5px;
+}
+</style>
+<link href="css/smoothness/jquery-ui-1.10.2.custom.css" rel="stylesheet">
 </head>
 <body>
 <script>
 var p, playerBehavior, enemyBehavior;
+var allCmds = ["maintainHeading", "changeSpeedTo", "turnRightBy", "turnLeftBy", "fireMissile", "goToState"];
+
+$(function(){
+  $("#behavior-tabs").tabs();
+  $(".commandList").sortable();
+});
 
 function play(){
-  p = window.Processing.getInstanceById("dacanvas");
   p.loop();
 }
 
 function pause(){
-  p = window.Processing.getInstanceById("dacanvas");
   p.noLoop();
 }
 
@@ -33,37 +70,44 @@ bindJS();
 function initBehavior(){
   playerBehavior = new Behavior(p, "player");
   enemyBehavior = new Behavior(p, "enemy");
-  console.log("K!");
+
+  addPursuitBehaviors();
+  addStateToUI(playerBehavior, playerBehavior.states[0]);
+  addStateToUI(playerBehavior, playerBehavior.states[1]);
+  addStateToUI(enemyBehavior, enemyBehavior.states[0]);
+  addStateToUI(enemyBehavior, enemyBehavior.states[1]);
 }
 
-function foo(){
-  p = window.Processing.getInstanceById("dacanvas");
-
-
+function addPursuitBehaviors(){
   var stateMaker = function(b){
     var turn_left_to_chase = {
-      name: "turn left to chase",
-      predicates: [b.assertEnemyDirection("NW")],
-      commands: [{fn: "changeSpeedTo", param: "medium"},
-                 {fn: "turnLeftBy", param: "1.5"}]
+      name: "turn_left_to_chase",
+      predicates: [{fn: b.assertEnemyDirection("NW"),
+                    label: "enemy ship is front-left of me"}],
+      commands: [{fn: "changeSpeedTo", param: "MEDIUM"},
+                 {fn: "turnLeftBy", param: "10.5"}]
     };
     var turn_right_to_chase = {
-      name: "turn right to chase",
-      predicates: [b.assertEnemyDirection("NE")],
-      commands: [{fn: "changeSpeedTo", param: "medium"},
-                 {fn: "turnRightBy", param: "5.5"}]
+      name: "turn_right_to_chase",
+      predicates: [{fn: b.assertEnemyDirection("NE"),
+                    label: "enemy ship is front-right of me"}],
+      commands: [{fn: "changeSpeedTo", param: "MEDIUM"},
+                 {fn: "turnRightBy", param: "10.5"}]
     };
     var stay_on_course = {
-      name: "stay on course",
-      predicates: [b.assertEnemyDirection("N")],
-      commands: [{fn: "changeSpeedTo", param: "high"},
+      name: "stay_on_course",
+      predicates: [{fn: b.assertEnemyDirection("N"),
+                    label: "enemy ship is in front of me"}],
+      commands: [{fn: "changeSpeedTo", param: "HIGH"},
+                 {fn: "fireMissile", param: undefined},
                  {fn: "maintainHeading", param: undefined}]
     };
     var turn_to_rear = {
-      name: "turn to rear",
-      predicates: [b.assertEnemyDirection("S")],
-      commands: [{fn: "changeSpeedTo", param: "medium"},
-                 {fn: "turnRightBy", param: "5.5"}]
+      name: "turn_to_rear",
+      predicates: [{fn: b.assertEnemyDirection("S"),
+                    label: "enemy ship is behind me"}],
+      commands: [{fn: "changeSpeedTo", param: "MEDIUM"},
+                 {fn: "turnRightBy", param: "10.5"}]
     };
 
     return [stay_on_course, turn_right_to_chase, turn_left_to_chase, turn_to_rear];
@@ -77,14 +121,159 @@ function foo(){
     stateName: "Pursuit",
     actions: stateMaker(enemyBehavior)
   };
-  playerBehavior.states.push(playerPursuitState);
-  enemyBehavior.states.push(enemyPursuitState);
+ var enemyStartGoingState = {
+    stateName: "Start",
+    actions: [{name: "start_moving",
+               predicates: [],
+               commands: [{fn: "changeSpeedTo", param: "LOW"},
+                          {fn: "goToState", param: "Idle"}]
+              }]
+  };
+  playerBehavior.addState(playerPursuitState, true);
+  enemyBehavior.addState(enemyPursuitState, true);
 }
+
+function UItoState(){
+  var ids = ["player", "enemy"];
+
+  for(var i in ids){
+    var id = ids[i];
+    $("#"+id+"-state-list").each(function(i, e){
+      return e;
+    });
+  }
+}
+
+function addStateToUI(behavior, state){
+  var id = behavior.id;
+
+  var stateDiv = $("<li>")
+    .attr('class', 'state')
+    .attr('id', state.stateName);
+  //stateDiv += "<b><u>"+state.stateName + "</u></b><br><ul>";
+  stateDiv.append("<span>")
+    .attr('style', 'font-weight: bold')
+    .html(state.stateName);
+  for(var i in state.actions){
+    var action = state.actions[i];
+    var actionId = id + "-" + state.stateName + "-action" + i;
+    var actionDiv = $("<div>")
+      .attr('id', actionId)
+      .attr('class', id+"action");
+    actionDiv.append($("<span class='action-title'>" + action.name + "</span>"));
+    actionDiv.append($("<p>If the following are true:"));
+    var predList = $("<ul class='predList'>");
+    for(var j in action.predicates){
+      var predItem = $("<li>").html(action.predicates[j].label);
+      predList.append(predItem);
+    }
+    actionDiv.append("If the following are true:");
+    actionDiv.append(predList);
+    actionDiv.append("Then:")
+    var commandList = $("<ul class='commandList'>");
+    var cmdsUsed = [];
+    for(var j in action.commands){
+      var thisCmd = action.commands[j];
+      cmdsUsed.push(thisCmd.fn);
+      var cli = $("<li>")
+        .attr('class', 'command')
+        .html($(commandLI(thisCmd.fn, thisCmd.param)).html());
+      commandList.append(cli);
+    }
+    var cmdsNotUsed = arrdiff(allCmds,cmdsUsed);
+    var newCmdPicklisti = $("<li id='"+id+"action"+i+"-newCmd'>");
+    var newCmdPicklist = $("<select id='"+id+"action"+i+"-cmdPicklist'>");
+    newCmdPicklist.append($("<option>Add a new command...</option>"));
+    for(var j in cmdsNotUsed){
+      var cmdj = cmdsNotUsed[j];
+      newCmdPicklist.append($("<option value='"+cmdj+"'>"+cmdj+"</option>"));
+    }
+    var cbGen = function(index, theId){
+      return function(){
+        var newCli = $("<li>").attr('class', 'command');
+        newCli.html(commandLI($(this).val()).html());
+        $('#'+theId+'action'+index+'-newCmd').before(newCli);
+        $('#'+theId+'action'+index+'-cmdPicklist option[value="'+$(this).val()+'"]').each(function(){
+          $(this).remove();
+        });
+      }
+    };
+    $(newCmdPicklist).change(cbGen(i, id));
+    newCmdPicklisti.append(newCmdPicklist);
+    commandList.append(newCmdPicklisti);
+    actionDiv.append(commandList);
+    stateDiv.append(actionDiv);
+  }
+
+  $("#" + id + "-state-list").append(stateDiv);
+  $(".commandList").sortable();
+}
+
+function commandLI(cmd, param){
+  var innerHTML = $("<span>")
+    .attr('class', 'cmdName')
+    .html(cmd + " ");
+
+  switch(cmd){
+    case "maintainHeading":
+      break;
+    case "changeSpeedTo":
+      var dropdown = $("<select>");
+      var options = ["HIGH", "MEDIUM", "LOW"];
+      for(var k in options){
+        var opt = $("<option value='"+options[k]+"'>"+options[k]+"</option>")
+        if(param == options[k]) opt.attr('selected', 'selected');
+        dropdown.append(opt);
+      }
+      innerHTML.append(dropdown);
+      break;
+    case "turnRightBy":
+      var input = $("<input>");
+      if(param != undefined) $(input).attr('value', param);
+      innerHTML.append(input);
+      break;
+    case "turnLeftBy":
+      var input = $("<input>");
+      if(param != undefined) $(input).attr('value', param);
+      innerHTML.append(input);
+      break;
+    case "fireMissile":
+      break;
+    case "goToState":
+      var input = $("<input>");
+      if(param != undefined) $(input).attr('value', param);
+      innerHTML.append(input);
+      break;
+    default: // command not recognized
+      return -1;
+      break;
+  }
+
+  return innerHTML;
+}
+
+arrdiff = function(b, a) {
+      return b.filter(function(i) {return !(a.indexOf(i) > -1);});
+};
 </script>
-<div id='player-behavior-list' class='behavior-list'></div>
-<div id='enemy-behavior-list' class='behavior-list'></div>
 <div id='command-palette'></div>
+<div id="behavior-tabs" style="float:left">
+  <ul>
+    <li><a href="#player-behavior-tab">Player Behavior</a></li>
+    <li><a href="#enemy-behavior-tab">Enemy Behavior</a></li>
+  </ul>
+  <div id="player-behavior-tab" class='behavior-tab'>
+    <div id='player-behavior-list' class='behavior-list'>
+      <ul id="player-state-list"></ul>
+    </div>
+  </div>
+  <div id="enemy-behavior-tab" class='behavior-tab'>
+    <div id='enemy-behavior-list' class='behavior-list'>
+      <ul id="enemy-state-list"></ul>
+    </div>
+  </div>
+</div>
 <button id='play' onClick='play();'>Play</button>
 <button id='pause' onClick='pause();'>Pause</button>
-<canvas id='dacanvas' data-processing-sources="Plane.pde aiplanes.pde"></canvas>
+<canvas id='dacanvas' data-processing-sources="Missile.pde Plane.pde aiplanes.pde"></canvas>
 </html>

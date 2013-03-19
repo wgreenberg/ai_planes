@@ -1,11 +1,12 @@
 function Behavior(pjs, id){
   this.pjs = pjs;
   this.id = id;
+  this.plane = pjs.getPlane(id);
   this.states =
     [
       {stateName: "Idle",
        actions: [
-         { name: "Do nothing",
+         { name: "do_nothing",
            predicates: [],
            commands: [{fn: "maintainHeading", param: undefined}] 
          }]
@@ -25,39 +26,46 @@ Behavior.prototype.assertEnemyDirection = function(proposedDir){
 
 Behavior.prototype.getDirection = function(){
   // return the relative position of the enemy
-  // 135   105  75    45
-  //     NW | N  | NE
-  // 180 W  | me | E  0
-  //     SW | S  | SE
-  // 225   255  285   315
+  //     SW | W  | NW
+  //     S  | me | N
+  //     SE | E  | NE
 
-  var diff = this.pjs.angleFromPlayerToEnemy();
+  var diff = this.plane.angleFromPlayerToEnemy();
 
-/*  if(diff >= 85 && diff <= 95) return "N";
-  else if(diff > 95 && diff <= 180) return "NW";
-  else if(diff > 0 && diff < 85) return "NE";
+  if(diff >= 350 || diff <= 10) return "N";
+  else if(diff > 10 && diff <= 150) return "NW";
+  else if(diff < 350 && diff > 240) return "NE";
   else return "S";
- */
-  if(diff >= 340 && diff <= 20) return "N";
-  else if(diff > 20 && diff <= 90) return "NW";
-  else if(diff < 340 && diff > 270) return "NE";
-  else return "S";
+};
+
+Behavior.prototype.addState = function(state, setAsCurrent){
+  this.states.push(state);
+  if(setAsCurrent === true) this.currentState = state;
 };
 
 Behavior.prototype.evalState = function(){
   // this.states = [{name: stateName, predicates: [p_fn1, p_fn2, ...], commands}]
   //   where commands = [{fn: fnName, param: parameter},...]
   var state = this.currentState;
+  var commandsToExecute = [];
+  $("." + this.id + "action").attr('class', this.id + "action");
   for(j in state.actions){
     var action = state.actions[j];
     var allTrue = true;
     for(i in action.predicates){
-      allTrue = allTrue && action.predicates[i]();
+      try{
+      allTrue = allTrue && action.predicates[i].fn();
+      }catch(e){console.log(state.stateName + " " + action.predicates[i]);}
     }
     if(allTrue){
-      this.runCommands(action.commands);
+      $("#" + this.id + "-" + state.stateName + "-action" + j).attr('class', this.id + 'action activeAction');
+      commandsToExecute = commandsToExecute.concat(action.commands);
+    }
+    else{
+      $("#" + this.id + "-" + state.stateName + "-action" + j).attr('class', this.id + 'action');
     }
   }
+  this.runCommands(commandsToExecute);
 };
 
 Behavior.prototype.runCommands = function(commands){
@@ -70,7 +78,7 @@ Behavior.prototype.runCommands = function(commands){
     if(cmdName == "goToState"){
       var foundState = false;
       for(j in this.states){
-        if(this.states[j].name == cmdParam){
+        if(this.states[j].stateName == cmdParam){
           this.currentState = this.states[j];
           foundState = true;
         }

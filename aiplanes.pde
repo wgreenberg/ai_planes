@@ -11,7 +11,7 @@ void bindJavascript(JavaScript js){
 }
 
 JavaScript javascript;
-Plane enemy = new Plane(#FF0000, windowX, windowY, new PVector(100.0, 50.0));
+Plane enemy = new Plane(#FF0000, windowX, windowY, new PVector(400.0, 450.0));
 Plane player = new Plane(#000000, windowX, windowY, new PVector(50.0, 100.0));
 
 void setup(){
@@ -21,14 +21,20 @@ void setup(){
 }
 
 int color = 0;
+int prevTime = 0;
 
 void draw(){
   background(100);
+  float now = millis();
+  float dt = now - prevTime;
 
-  if(enemyBehavior != undefined)
-    enemyBehavior.evalState();
-  if(playerBehavior != undefined)
-    playerBehavior.evalState();
+  if(dt > 100){
+    if(enemyBehavior != undefined)
+      enemyBehavior.evalState();
+    if(playerBehavior != undefined)
+      playerBehavior.evalState();
+    prevTime = now;
+  }
 
   enemy.update();
   enemy.draw();
@@ -37,10 +43,10 @@ void draw(){
   player.draw();
 }
 
-float angleFromPlayerToEnemy(){
-  PVector playerToEnemy = PVector.sub(enemy.pos, player.pos);
-  float angleBetween = PVector.angleBetween(player.headingV, playerToEnemy);
-  return degrees(angleBetween);
+Plane getPlane(id){
+  if(id == "player") return player;
+  else if(id == "enemy") return enemy;
+  else return null;
 }
 
 PVector getPosition(meOrHim){
