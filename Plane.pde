@@ -100,6 +100,7 @@ class Plane{
 
   public void damage(int damageDone){
     console.log("BOOM!");
+    if(this.dead==1) return;
     this.health -= damageDone;
     if(health <= 0){
       this.dead = 1;
